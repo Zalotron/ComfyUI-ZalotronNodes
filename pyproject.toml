@@ -1,0 +1,9 @@
+[project]
+name = "comfyui-zalotron-nodes"
+description = "Custom nodes for the AI Editor pipeline."
+version = "0.1.0"
+
+[tool.comfy]
+PublisherId = "zalotron"
+DisplayName = "Zalotron nodes"
+Icon = ""
