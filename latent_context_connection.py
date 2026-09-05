@@ -3,8 +3,7 @@ import torch
 
 CONTEXT_FRAMES = 25
 HEAD_LATENTS = 4
-TAIL_LATENTS = 3
-TAIL_MASKED = 2
+TAIL_LATENTS = 1
 
 
 class LatentContextConnectionLTX:
@@ -27,10 +26,10 @@ class LatentContextConnectionLTX:
     DESCRIPTION = (
         "Writes the head and/or tail of a latent with encoded context clips. "
         "clip_1 is the beginning: its first 25 frames become the first 4 latents. "
-        "clip_2 is the end: its first 25 frames encode to 4 latents and the last 3 "
-        "are written at the end, dropping the single-frame one. The noise mask "
-        "comes out white except for the first 4 latents (when clip_1 is used) and "
-        "the last 2 (when clip_2 is used). At least one clip must be connected."
+        "clip_2 is the end: its first 25 frames encode to 4 latents and only the "
+        "last one is written, so the model authors the 16 frames leading into it "
+        "instead of having to land on them. The noise mask comes out white except "
+        "for the written latents. At least one clip must be connected."
     )
 
     @staticmethod
@@ -57,20 +56,21 @@ class LatentContextConnectionLTX:
             n = min(HEAD_LATENTS, head.shape[2], count)
             samples[:, :, :n] = head[:, :, :n]
 
+        tail_n = 0
         if clip_2 is not None:
             tail = self._encode(vae, clip_2, width, height)
             # The clip's first latent holds a single frame and cannot be placed
             # anywhere but position 0, so only the full 8-frame ones are used.
-            n = min(TAIL_LATENTS, tail.shape[2] - 1, count)
-            samples[:, :, count - n:] = tail[:, :, tail.shape[2] - n:]
+            tail_n = min(TAIL_LATENTS, tail.shape[2] - 1, count)
+            samples[:, :, count - tail_n:] = tail[:, :, tail.shape[2] - tail_n:]
 
         mask = torch.ones(
             (batch, 1, count, 1, 1), dtype=samples.dtype, device=samples.device
         )
         if clip_1 is not None:
             mask[:, :, :min(HEAD_LATENTS, count)] = 0.0
-        if clip_2 is not None:
-            mask[:, :, count - min(TAIL_MASKED, count):] = 0.0
+        if tail_n:
+            mask[:, :, count - tail_n:] = 0.0
 
         out["samples"] = samples
         out["noise_mask"] = mask
